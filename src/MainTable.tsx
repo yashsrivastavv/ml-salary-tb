@@ -69,8 +69,6 @@ const MainTable: React.FC = () => {
       aggregatedData[work_year].totalSalary += salary_in_usd;
     });
 
-    
-    // export default App;
     const formattedData: SalaryData[] = Object.keys(aggregatedData).map((yearStr) => {
       const year = parseInt(yearStr);
       return {
@@ -79,7 +77,6 @@ const MainTable: React.FC = () => {
         averageSalary: aggregatedData[year].totalSalary / aggregatedData[year].totalJobs,
       };
     });
-
     console.log('Formatted data:', formattedData);
     setData(formattedData);
     setLoading(false);
