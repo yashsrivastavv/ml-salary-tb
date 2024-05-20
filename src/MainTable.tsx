@@ -2,20 +2,26 @@
 import React, { useEffect, useState } from 'react';
 import { Table } from 'antd';
 import { ColumnsType } from 'antd/es/table';
+import Papa, { ParseResult } from 'papaparse';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-// interface RawSalaryData {
-//   work_year: number;
-//   experience_level: string;
-//   employment_type: string;
-//   job_title: string;
-//   salary: number;
-//   salary_currency: string;
-//   salary_in_usd: number;
-//   employee_residence: string;
-//   remote_ratio: number;
-//   company_location: string;
-//   company_size: string;
-// }
+interface RawSalaryData {
+  work_year: number;
+  experience_level: string;
+  employment_type: string;
+  job_title: string;
+  salary: number;
+  salary_currency: string;
+  salary_in_usd: number;
+  employee_residence: string;
+  remote_ratio: number;
+  company_location: string;
+  company_size: string;
+}
+
+interface AggregatedData {
+  [year: number]: { totalJobs: number; totalSalary: number };
+}
 
 interface SalaryData {
   year: number;
@@ -23,56 +29,80 @@ interface SalaryData {
   averageSalary: number;
 }
 
+interface JobTitleData {
+  jobTitle: string;
+  totalJobs: number;
+}
+
 const MainTable: React.FC = () => {
   const [data, setData] = useState<SalaryData[]>([]);
+  const [jobTitleData, setJobTitleData] = useState<JobTitleData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch('/salary_data.csv');
-        const csvData = await response.text();
-        processData(csvData);
-      } catch (error) {
-        console.error('Error fetching CSV data:', error);
-        setLoading(false);
-      }
-    };
+    Papa.parse('/salary_data.csv', {
+      download: true,
+      header: true,
+      dynamicTyping: true,
+      complete: (result: ParseResult<RawSalaryData>) => {
+        const rawData: RawSalaryData[] = result.data;
+        const aggregatedData: AggregatedData = {};
 
-    fetchData();
+        rawData.forEach((item) => {
+          const { work_year, salary_in_usd } = item;
+          if (!aggregatedData[work_year]) {
+            aggregatedData[work_year] = { totalJobs: 0, totalSalary: 0 };
+          }
+          aggregatedData[work_year].totalJobs += 1;
+          aggregatedData[work_year].totalSalary += salary_in_usd;
+        });
+
+        const formattedData: SalaryData[] = Object.keys(aggregatedData).map((yearStr) => {
+          const year = parseInt(yearStr);
+          return {
+            year,
+            totalJobs: aggregatedData[year].totalJobs,
+            averageSalary: aggregatedData[year].totalSalary / aggregatedData[year].totalJobs,
+          };
+        });
+
+        setData(formattedData);
+        setLoading(false);
+      },
+    });
   }, []);
 
-  const processData = (csvData: string) => {
-    const rows = csvData.split('\n').slice(1); // Skip header row
-    const aggregatedData: { [year: number]: { totalJobs: number; totalSalary: number } } = {};
-  
-    rows.forEach((row) => {
-      const columns = row.split(',');
-      const workYear = parseInt(columns[0]);
-      const salaryInUSD = parseInt(columns[6]);
-  
-      if (!aggregatedData[workYear]) {
-        aggregatedData[workYear] = { totalJobs: 0, totalSalary: 0 };
-      }
-      aggregatedData[workYear].totalJobs += 1;
-      aggregatedData[workYear].totalSalary += salaryInUSD;
-    });
-  
-    const formattedData: SalaryData[] = Object.keys(aggregatedData).map((yearStr) => {
-      const year = parseInt(yearStr);
-      return {
-        year,
-        totalJobs: aggregatedData[year].totalJobs,
-        averageSalary: aggregatedData[year].totalSalary / aggregatedData[year].totalJobs,
-      };
-    });
-  
-    setData(formattedData);
-    setLoading(false);
-  };
-  
+  const handleRowClick = (year: number) => {
+    Papa.parse('/salary_data.csv', {
+      download: true,
+      header: true,
+      dynamicTyping: true,
+      complete: (result: ParseResult<RawSalaryData>) => {
+        const rawData: RawSalaryData[] = result.data;
+        const jobTitleAggregation: { [jobTitle: string]: number } = {};
 
-  const columns: ColumnsType<SalaryData> = [
+        rawData.forEach((item) => {
+          if (item.work_year === year) {
+            if (!jobTitleAggregation[item.job_title]) {
+              jobTitleAggregation[item.job_title] = 0;
+            }
+            jobTitleAggregation[item.job_title] += 1;
+          }
+        });
+
+        const jobTitleData: JobTitleData[] = Object.keys(jobTitleAggregation).map((jobTitle) => ({
+          jobTitle,
+          totalJobs: jobTitleAggregation[jobTitle],
+        }));
+
+        setJobTitleData(jobTitleData);
+        setSelectedYear(year);
+      },
+    });
+  };
+
+  const mainTableColumns: ColumnsType<SalaryData> = [
     {
       title: 'Year',
       dataIndex: 'year',
@@ -94,7 +124,55 @@ const MainTable: React.FC = () => {
     },
   ];
 
-  return <Table columns={columns} dataSource={data} rowKey="year" loading={loading} />;
+  const jobTitleColumns: ColumnsType<JobTitleData> = [
+    {
+      title: 'Job Title',
+      dataIndex: 'jobTitle',
+      key: 'jobTitle',
+    },
+    {
+      title: 'Number of Jobs',
+      dataIndex: 'totalJobs',
+      key: 'totalJobs',
+    },
+  ];
+
+  return (
+    <div>
+      <ResponsiveContainer width="100%" height={400}>
+        <LineChart
+          data={data}
+          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="year" />
+          <YAxis />
+          <Tooltip />
+          <Legend />
+          <Line type="monotone" dataKey="totalJobs" stroke="#8884d8" activeDot={{ r: 8 }} />
+        </LineChart>
+      </ResponsiveContainer>
+      <Table
+        columns={mainTableColumns}
+        dataSource={data}
+        rowKey="year"
+        loading={loading}
+        onRow={(record) => ({
+          onClick: () => handleRowClick(record.year),
+        })}
+      />
+      {selectedYear !== null && (
+        <div>
+          <h2>Job Titles for {selectedYear}</h2>
+          <Table
+            columns={jobTitleColumns}
+            dataSource={jobTitleData}
+            rowKey="jobTitle"
+          />
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default MainTable;
