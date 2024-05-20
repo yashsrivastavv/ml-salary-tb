@@ -5,19 +5,19 @@ import { ColumnsType } from 'antd/es/table';
 import Papa, { ParseResult } from 'papaparse';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-// interface RawSalaryData {
-//   work_year: number;
-//   experience_level: string;
-//   employment_type: string;
-//   job_title: string;
-//   salary: number;
-//   salary_currency: string;
-//   salary_in_usd: number;
-//   employee_residence: string;
-//   remote_ratio: number;
-//   company_location: string;
-//   company_size: string;
-// }
+interface RawSalaryData {
+  work_year: number;
+  experience_level: string;
+  employment_type: string;
+  job_title: string;
+  salary: number;
+  salary_currency: string;
+  salary_in_usd: number;
+  employee_residence: string;
+  remote_ratio: number;
+  company_location: string;
+  company_size: string;
+}
 
 interface AggregatedData {
   [year: number]: { totalJobs: number; totalSalary: number };
